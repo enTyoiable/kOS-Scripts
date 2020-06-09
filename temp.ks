@@ -12,6 +12,9 @@
 //
 //==================================================
 
+// Set terminal height
+set terminal:height to 14. //Fix. Doesn't seem to work.
+
 // Define Parameters
 parameter targetaltitude.
 parameter targetincl.
@@ -51,6 +54,7 @@ lock flightpathang to 90-VANG(UP:VECTOR,SHIP:PROGRADE:VECTOR).
 
 //Launch Countdown
 CLEARSCREEN.
+
 FROM {local countdown is 5.} UNTIL countdown=0 STEP {SET countdown to countdown-1.} DO {
 	print "Launch Countdown Initiated" at (0,1).
 	print "T-"+countdown.
@@ -111,19 +115,28 @@ UNTIL runmode=0 {
 	}
 
 	// Automatic Staging
-	set should_stage to false.
-	set should_stage to (ship:maxthrust = 0).
-
-	list engines in englist.
-	for eng in englist {
-	  if eng:flameout {
-	    set should_stage to true.
-	  }
-	}
-
-	if should_stage {
-	  stage.
-		wait 5.
+	until maxthrust > 0 {
+		if stage:number > 0 {
+			if maxthrust = 0 {
+			wait 0.5.
+			}
+			SET numOut to 0.
+			LIST ENGINES IN engines.
+			FOR eng IN engines {
+				IF eng:FLAMEOUT {
+					SET numOut TO numOut + 1.
+				}
+			}
+			if numOut > 0 {
+			wait 0.5.
+			stage.
+			}
+		}
+		if SHIP:ALTITUDE > 150 {
+			if runmode = 3 {
+			wait 1.5.
+			}
+		}
 	}
 
 	// Run Apoapsis Check
@@ -229,14 +242,14 @@ UNTIL runmode=0 {
 		if VERTICALSPEED < 0 {
 			set runmode to 6.
 		}
-		else if circburnflag = 0 and ETA:APOAPSIS < 30 {
+		else if circburnflag = 0 and ETA:APOAPSIS<30 {
 			RCS off.
-			set warp to 0.
+//			set warp to 0.
 			set runmode to 6.
 		}
-		else if circburnflag = 1 and ETA:APOAPSIS < 30 {
+		else if circburnflag = 1 and ETA:APOAPSIS<5 {
 			RCS off.
-			set warp to 0.
+//			set warp to 0.
 			set runmode to 6.
 		}
 	}
@@ -260,5 +273,7 @@ FROM {local countdownrelease is 5.} UNTIL countdownrelease=0 STEP {SET countdown
 	print "Releasing command in T- " + countdownrelease + " seconds..." at (0,10).
 	wait 1.
 }
+
+SHUTDOWN.
 
 // End script
