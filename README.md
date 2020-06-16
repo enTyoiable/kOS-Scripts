@@ -2,7 +2,7 @@
 kerbal Operating System Scripts
 
 A collection of my personal used Kerbal Space Program (KSP) - kerbal Operating System (kOS) scripts.
-Most scripts are either altered scripts and or copy/pasted together to make more complete scripts.
+Most scripts are altered scripts, cleaned up for readability and bug hunting and/or copy/pasted together to make more complete scripts.
 
 Original script sources/authors can be found in the scripts.
 
