@@ -12,7 +12,7 @@
 //
 //==================================================
 //
-// Adjusted (higher) TWR ratio's for less deltaV burning but a less stable launch. May cause flipping in lower atmosphere.
+// Mostly default TWR ratio's used in original Script.
 //
 //==================================================
 
@@ -117,11 +117,11 @@ UNTIL runmode = 0 {
 		SAS off.
 		lock steering to heading(beta,gamma).
 		print " Vertical Lock Active  " at (10,13).
-	}	else if SHIP:altitude > 15000 and abs(ORBIT:inclination - abs(targetincl)) < 0.01 and steeringlock = 0 {
+	} else if SHIP:altitude > 15000 and abs(ORBIT:inclination - abs(targetincl)) < 0.01 and steeringlock = 0 {
 		lock steering to SHIP:PROGRADE * R(flightpathang - gamma,0,0):VECTOR.
 		print "Inclination Lock Active" at (10,13).
 		set steeringlock to 1.
-	}	else if steeringlock = 0 {
+	} else if steeringlock = 0 {
 		lock steering to heading(beta,gamma).
 		print "  Azimuth Lock Active  " at (10,13).
 	}	else if steeringlock = 1 {
@@ -178,7 +178,7 @@ UNTIL runmode = 0 {
 	// Gravity Turn from 500m to 65km
 	else if runmode = 3 {
 		set gamma to 8.75513e-9 * (SHIP:ALTITUDE) ^2 - 0.0019223 * (SHIP:ALTITUDE) + 90.95896.
-		set TWR to 2.5. // Default 1.6
+		set TWR to 1.6.
 		set throt to (MASS * 9.81 * TWR) / max(0.01,MAXTHRUST).
 		if SHIP:ALTITUDE > 65000{
 			RCS on.
@@ -190,7 +190,7 @@ UNTIL runmode = 0 {
 	// Prograde Thrust to Raise Apoapsis
 	else if runmode = 4 {
 		set gamma to 3.
-		set TWR to 2.5. // default 1.5
+		set TWR to 1.5.
 		set throt to (MASS * 9.81 * TWR) / max(0.01,MAXTHRUST).
 	}
 

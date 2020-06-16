@@ -12,9 +12,6 @@
 //
 //==================================================
 
-// Set terminal height
-set terminal:height to 14. //Fix. Doesn't seem to work.
-
 // Define Parameters
 parameter targetaltitude.
 parameter targetincl.
@@ -40,6 +37,7 @@ set apoapsischeck to 0.
 set circburnflag to 0.
 set gamma to 90.
 set steeringlock to 0.
+set ejected to 0.
 
 // Reset inclination
 if abs(launchlatitude)>abs(targetincl) {set targetincl to launchlatitude.}
@@ -54,7 +52,6 @@ lock flightpathang to 90-VANG(UP:VECTOR,SHIP:PROGRADE:VECTOR).
 
 //Launch Countdown
 CLEARSCREEN.
-
 FROM {local countdown is 5.} UNTIL countdown=0 STEP {SET countdown to countdown-1.} DO {
 	print "Launch Countdown Initiated" at (0,1).
 	print "T-"+countdown.
@@ -84,11 +81,11 @@ UNTIL runmode=0 {
 	// Telemetry Display
 	print "Launching to a " + targetaltitude/1000 + " km circular orbit" at (0,3).
 	print "with inclination of " + round(targetincl,3) + " degrees." at (0,4).
-	print "Runmode: " + runmode at (0,6).
+	print "Runmode: " + runmode + "  " at (0,6).
 	print "Commanded Azimuth (degrees):           " + round(beta,4) at (0,7).
 	print "Commanded Flight Path Angle (degrees): " + round(gamma,4) + "      " at (0,8).
 	print "Orbital Flight Path Angle (degrees):   " + round(flightpathang,4) at (0,9).
-	print "Time to Apoapsis:                      " + round(ETA:APOAPSIS,2) at (0,11).
+	print "Time to Apoapsis:                      " + round(ETA:APOAPSIS,2) + "s" at (0,11).
 
 	// Lock steering
 	if runmode=1 {
@@ -115,28 +112,20 @@ UNTIL runmode=0 {
 	}
 
 	// Automatic Staging
-	until maxthrust > 0 {
-		if stage:number > 0 {
-			if maxthrust = 0 {
-			wait 0.5.
-			}
-			SET numOut to 0.
-			LIST ENGINES IN engines.
-			FOR eng IN engines {
-				IF eng:FLAMEOUT {
-					SET numOut TO numOut + 1.
-				}
-			}
-			if numOut > 0 {
-			wait 0.5.
-			stage.
-			}
-		}
-		if SHIP:ALTITUDE > 150 {
-			if runmode = 3 {
-			wait 1.5.
-			}
-		}
+	set should_stage to false.
+	set should_stage to (ship:maxthrust = 0).
+
+	list engines in englist.
+	for eng in englist {
+	  if eng:flameout {
+	    set should_stage to true.
+	  }
+	}
+
+	if should_stage {
+	  stage.
+		// Wait is needed when using collapsable bell CE-10 and CE-60 cryogenic rocket engines
+		wait 5.
 	}
 
 	// Run Apoapsis Check
@@ -171,9 +160,10 @@ UNTIL runmode=0 {
 	// Gravity Turn from 500m to 65km
 	else if runmode=3 {
 		set gamma to 8.75513e-9*(SHIP:ALTITUDE)^2-0.0019223*(SHIP:ALTITUDE)+90.95896.
-		set TWR to 1.6.
+		set TWR to 2.5. // Default 1.6
 		set throt to (MASS*9.81*TWR)/max(0.01,MAXTHRUST).
 		if SHIP:ALTITUDE>65000{
+			RCS on.
 			set runmode to 4.
 			print "Launch Status: Thrust to Apoapsis" at (0,1).
 		}
@@ -182,7 +172,7 @@ UNTIL runmode=0 {
 	// Prograde Thrust to Raise Apoapsis
 	else if runmode=4 {
 		set gamma to 3.
-		set TWR to 1.5.
+		set TWR to 2.5. // default 1.5
 		set throt to (MASS*9.81*TWR)/max(0.01,MAXTHRUST).
 	}
 
@@ -191,7 +181,7 @@ UNTIL runmode=0 {
 		set gamma to 1.
 		set TWR to 0.75.
 		set throt to min(1,(MASS*9.81*TWR)/max(0.01,MAXTHRUST)).
-		if ALT:APOAPSIS > targetaltitude*0.998 {
+		if ALT:APOAPSIS > targetaltitude*0.990 {
 			set runmode to 10.
 			print "Launch Status: Circularization     " at (0,1).
 		}
@@ -199,24 +189,25 @@ UNTIL runmode=0 {
 
 	// Circularization Burn
 	else if runmode=6 {
-//		set warp to 0.
 		RCS on.
 		set gamma to 0.
+
 		// First circularization burn increases periapsis above sea level
-		if circburnflag=0 {
-			if ALT:PERIAPSIS>0 { //cut throttle and wait when periapsis increases above sea level
+		if circburnflag = 0 {
+			if ALT:PERIAPSIS > 0 { //cut throttle and wait when periapsis increases above sea level
 				set circburnflag to 1.
 				set runmode to 10.
 			}
 			else {
-			set TWR to 1.
-			set throt to min(1,(MASS*9.81*TWR)/max(0.01,MAXTHRUST)).
+//			set TWR to 1.
+			set throt to 1. //min(1,(MASS*9.81*TWR)/max(0.01,MAXTHRUST)).
 			}
 		}
+
 		// Second circularization burn fully circularizes orbit
-		else if circburnflag=1 {
+		else if circburnflag = 1 {
 			RCS on.
-			if ALT:PERIAPSIS > targetaltitude*0.999 or ALT:APOAPSIS > 1.01*targetaltitude {
+			if ALT:PERIAPSIS >= targetaltitude - 1 { //*0.999 or ALT:APOAPSIS > 1.01*targetaltitude {
 				set circburnflag to 3.
 				set throt to 0.
 				set pilotmainthrottle to 0.
@@ -229,43 +220,46 @@ UNTIL runmode=0 {
 		}
 	}
 
-	// Wait call
+	// Wait call with warping
 	else if runmode=10 {
 		set throt to 0.
-//		FROM {local countdownwarp is 5.} UNTIL countdownwarp=0 STEP {SET countdownwarp to countdownwarp-1.} DO {
-//			print "Warping to node in T- " + countdownwarp + " seconds..." at (0,12).
-//			wait 1.
-//		}
-//		print "                                         " at (0,12).
-//		set warpmode to "rails".
-//		set warp to 7.
+		if SHIP:ALTITUDE > 70000 and ejected = 0 {
+			AG5 on. // Activate Action Group 5: Deploy fairings, and fire off escape launch tower.
+			LIGHTS on. // Activate vessel lights
+			wait 5.
+			set ejected to 1.
+		}
+		if SHIP:ALTITUDE > 70000 and ETA:APOAPSIS > 30 {
+				WARPTO(TIME:SECONDS + ETA:APOAPSIS - 30).
+		}
 		if VERTICALSPEED < 0 {
 			set runmode to 6.
 		}
-		else if circburnflag = 0 and ETA:APOAPSIS<30 {
+		else if circburnflag = 0 and ETA:APOAPSIS < 30 {
 			RCS off.
-//			set warp to 0.
+			set warp to 0.
 			set runmode to 6.
 		}
-		else if circburnflag = 1 and ETA:APOAPSIS<5 {
+		else if circburnflag = 1 and ETA:APOAPSIS < 5 {
 			RCS off.
-//			set warp to 0.
+			set warp to 0.
 			set runmode to 6.
 		}
 	}
-
 }
 
-// Enable RSC and SCS
-RCS on.
+// Enable RSC and SCS and AG1.
+RCS off.
 SAS on.
+AG1 on. // Custom Action group call (open Universal Storage 2 adapter with solar cell)
+AG2 on. // Custom Action group call -  Extend/unfold antenna's
 
 // Completion dialog and countdown to unlock program
 CLEARSCREEN.
 
 print "Launch Complete!" at (0,1).
 print "Stability Assist System activated." at (0,3).
-print "Reaction Control system is enabled." at (0,4).
+print "Reaction Control System is disabled." at (0,4).
 print "Welcome to orbit at " + targetaltitude / 1000 + " Km." at (0,6).
 print "Thank you for using this Rhysode Space Initiative product!" at (0, 12).
 
@@ -274,6 +268,6 @@ FROM {local countdownrelease is 5.} UNTIL countdownrelease=0 STEP {SET countdown
 	wait 1.
 }
 
-SHUTDOWN.
+UNLOCK ALL.
 
 // End script
